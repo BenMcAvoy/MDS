@@ -1,13 +1,12 @@
 #![deny(unsafe_code)]
 
-use crop::{Rope, RopeBuilder};
+use ropey::Rope;
 
 use std::fs;
-use std::io::Read;
+use std::io::BufReader;
 use std::process;
 use std::sync::{Arc, Mutex};
 
-/// Where to store the rope
 const ROPE_STORE_PATH: &str = "./rope.md";
 
 /// The main struct for storing data in the
@@ -26,18 +25,18 @@ pub struct MDSServer {
 /// of the rope coming from `ROPE_STORE_PATH`.
 impl Default for MDSServer {
     fn default() -> Self {
-        // Get a file desccriptor to the rope
-        // store path and create it if it does
-        // not exist.
-        let file = fs::OpenOptions::new()
+        // Create a file descriptor that will
+        // create the file if it does not
+        // already exist.
+        let descriptor = fs::OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .open(ROPE_STORE_PATH);
 
-        // Check for errors when getting the
-        // file descriptor.
-        let mut file = match file {
+        // Extract the okay variant from the
+        // descriptor and fail if it can't.
+        let descriptor = match descriptor {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("Failed to open or create file: {e}");
@@ -45,19 +44,11 @@ impl Default for MDSServer {
             }
         };
 
-        // Read the rope store contents using
-        // the file descriptor.
-        let mut rope_contents = String::new();
-        if let Err(e) = file.read_to_string(&mut rope_contents) {
-            eprintln!("Error reading file: {e}");
-            process::exit(-1);
-        }
+        // Create a rope.
+        let rope = Rope::from_reader(BufReader::new(descriptor));
 
-        // NOTE: `clone` does not matter much
-        // here as we are in startup.
-        let rope = RopeBuilder::new().append(rope_contents).clone().build();
-
-        let rope = Arc::new(Mutex::new(rope));
+        // Wrap it in an Arc and a Mutex.
+        let rope = Arc::new(Mutex::new(rope.unwrap()));
 
         Self { rope }
     }
